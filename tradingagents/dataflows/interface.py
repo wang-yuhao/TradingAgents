@@ -1,24 +1,36 @@
-from typing import Annotated
+import logging
 
-# Import from vendor-specific modules
-from .local import get_YFin_data, get_finnhub_news, get_finnhub_company_insider_sentiment, get_finnhub_company_insider_transactions, get_simfin_balance_sheet, get_simfin_cashflow, get_simfin_income_statements, get_reddit_global_news, get_reddit_company_news
-from .y_finance import get_YFin_data_online, get_stock_stats_indicators_window, get_balance_sheet as get_yfinance_balance_sheet, get_cashflow as get_yfinance_cashflow, get_income_statement as get_yfinance_income_statement, get_insider_transactions as get_yfinance_insider_transactions
-from .google import get_google_news
-from .openai import get_stock_news_openai, get_global_news_openai, get_fundamentals_openai
 from .alpha_vantage import (
-    get_stock as get_alpha_vantage_stock,
-    get_indicator as get_alpha_vantage_indicator,
-    get_fundamentals as get_alpha_vantage_fundamentals,
     get_balance_sheet as get_alpha_vantage_balance_sheet,
     get_cashflow as get_alpha_vantage_cashflow,
+    get_fundamentals as get_alpha_vantage_fundamentals,
+    get_global_news as get_alpha_vantage_global_news,
     get_income_statement as get_alpha_vantage_income_statement,
+    get_indicator as get_alpha_vantage_indicator,
     get_insider_transactions as get_alpha_vantage_insider_transactions,
-    get_news as get_alpha_vantage_news
+    get_news as get_alpha_vantage_news,
+    get_stock as get_alpha_vantage_stock,
 )
-from .alpha_vantage_common import AlphaVantageRateLimitError
-
-# Configuration and routing logic
 from .config import get_config
+from .errors import (
+    NoMarketDataError,
+    VendorNotConfiguredError,
+    VendorRateLimitError,
+)
+from .fred import get_macro_data as get_fred_macro_data
+from .polymarket import get_prediction_markets as get_polymarket_prediction_markets
+from .y_finance import (
+    get_balance_sheet as get_yfinance_balance_sheet,
+    get_cashflow as get_yfinance_cashflow,
+    get_fundamentals as get_yfinance_fundamentals,
+    get_income_statement as get_yfinance_income_statement,
+    get_insider_transactions as get_yfinance_insider_transactions,
+    get_stock_stats_indicators_window,
+    get_YFin_data_online,
+)
+from .yfinance_news import get_global_news_yfinance, get_news_yfinance
+
+logger = logging.getLogger(__name__)
 
 # Tools organized by category
 TOOLS_CATEGORIES = {
@@ -44,22 +56,40 @@ TOOLS_CATEGORIES = {
         ]
     },
     "news_data": {
-        "description": "News (public/insiders, original/processed)",
+        "description": "News and insider data",
         "tools": [
             "get_news",
             "get_global_news",
-            "get_insider_sentiment",
             "get_insider_transactions",
+        ]
+    },
+    "macro_data": {
+        "description": "Macroeconomic indicators (rates, inflation, labor, growth)",
+        "tools": [
+            "get_macro_indicators",
+        ]
+    },
+    "prediction_markets": {
+        "description": "Market-implied probabilities for forward-looking events",
+        "tools": [
+            "get_prediction_markets",
         ]
     }
 }
 
 VENDOR_LIST = [
-    "local",
     "yfinance",
-    "openai",
-    "google"
+    "fred",
+    "polymarket",
+    "alpha_vantage",
 ]
+
+# Optional enrichment categories. These add macro/event context to the news
+# analyst but are not core to a decision, so a vendor failure here degrades to a
+# sentinel instead of aborting the run (a bad LLM-supplied indicator, a missing
+# key, or a network blip should not crash an analysis over flavour data). Core
+# categories (prices, fundamentals, news) still raise so a broken primary is loud.
+OPTIONAL_CATEGORIES = {"macro_data", "prediction_markets"}
 
 # Mapping of methods to their vendor-specific implementations
 VENDOR_METHODS = {
@@ -67,52 +97,49 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
-        "local": get_YFin_data,
     },
     # technical_indicators
     "get_indicators": {
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
-        "local": get_stock_stats_indicators_window
     },
     # fundamental_data
     "get_fundamentals": {
         "alpha_vantage": get_alpha_vantage_fundamentals,
-        "openai": get_fundamentals_openai,
+        "yfinance": get_yfinance_fundamentals,
     },
     "get_balance_sheet": {
         "alpha_vantage": get_alpha_vantage_balance_sheet,
         "yfinance": get_yfinance_balance_sheet,
-        "local": get_simfin_balance_sheet,
     },
     "get_cashflow": {
         "alpha_vantage": get_alpha_vantage_cashflow,
         "yfinance": get_yfinance_cashflow,
-        "local": get_simfin_cashflow,
     },
     "get_income_statement": {
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
-        "local": get_simfin_income_statements,
     },
     # news_data
     "get_news": {
         "alpha_vantage": get_alpha_vantage_news,
-        "openai": get_stock_news_openai,
-        "google": get_google_news,
-        "local": [get_finnhub_news, get_reddit_company_news, get_google_news],
+        "yfinance": get_news_yfinance,
     },
     "get_global_news": {
-        "openai": get_global_news_openai,
-        "local": get_reddit_global_news
-    },
-    "get_insider_sentiment": {
-        "local": get_finnhub_company_insider_sentiment
+        "yfinance": get_global_news_yfinance,
+        "alpha_vantage": get_alpha_vantage_global_news,
     },
     "get_insider_transactions": {
         "alpha_vantage": get_alpha_vantage_insider_transactions,
         "yfinance": get_yfinance_insider_transactions,
-        "local": get_finnhub_company_insider_transactions,
+    },
+    # macro_data
+    "get_macro_indicators": {
+        "fred": get_fred_macro_data,
+    },
+    # prediction_markets
+    "get_prediction_markets": {
+        "polymarket": get_polymarket_prediction_markets,
     },
 }
 
@@ -142,103 +169,94 @@ def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)
-
-    # Handle comma-separated vendors
     primary_vendors = [v.strip() for v in vendor_config.split(',')]
 
     if method not in VENDOR_METHODS:
         raise ValueError(f"Method '{method}' not supported")
 
-    # Get all available vendors for this method for fallback
     all_available_vendors = list(VENDOR_METHODS[method].keys())
-    
-    # Create fallback vendor list: primary vendors first, then remaining vendors as fallbacks
-    fallback_vendors = primary_vendors.copy()
-    for vendor in all_available_vendors:
-        if vendor not in fallback_vendors:
-            fallback_vendors.append(vendor)
 
-    # Debug: Print fallback ordering
-    primary_str = " → ".join(primary_vendors)
-    fallback_str = " → ".join(fallback_vendors)
-    print(f"DEBUG: {method} - Primary: [{primary_str}] | Full fallback order: [{fallback_str}]")
+    # The configured vendor list IS the chain: we do NOT silently fall back to
+    # vendors the user did not choose (#988/#289) — that returned data from an
+    # unexpected source and caused cross-vendor inconsistencies. For multi-vendor
+    # fallback, list them in order, e.g. data_vendors="yfinance,alpha_vantage".
+    # The "default" sentinel (no explicit config) uses all available vendors.
+    explicit = [v for v in primary_vendors if v and v != "default"]
+    if explicit:
+        vendor_chain = [v for v in explicit if v in VENDOR_METHODS[method]]
+        if not vendor_chain:
+            raise ValueError(
+                f"Configured vendor(s) {explicit} not available for '{method}'. "
+                f"Available: {all_available_vendors}."
+            )
+    else:
+        vendor_chain = all_available_vendors
 
-    # Track results and execution state
-    results = []
-    vendor_attempt_count = 0
-    any_primary_vendor_attempted = False
-    successful_vendor = None
+    last_no_data: NoMarketDataError | None = None
+    first_error: Exception | None = None
+    for vendor in vendor_chain:
+        vendor_impl = VENDOR_METHODS[method][vendor]
+        impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
 
-    for vendor in fallback_vendors:
-        if vendor not in VENDOR_METHODS[method]:
-            if vendor in primary_vendors:
-                print(f"INFO: Vendor '{vendor}' not supported for method '{method}', falling back to next vendor")
+        try:
+            return impl_func(*args, **kwargs)
+        except VendorRateLimitError:
+            logger.warning("Vendor %r rate-limited for %s; trying next vendor.", vendor, method)
+            continue
+        except VendorNotConfiguredError as e:
+            logger.warning("Vendor %r not configured for %s; trying next vendor.", vendor, method)
+            if first_error is None:
+                first_error = e  # Surface it if no other vendor can serve the call.
+            continue
+        except NoMarketDataError as e:
+            last_no_data = e  # No data here; another configured vendor may have it
+            continue
+        except Exception as e:
+            # Don't let one vendor's failure crash the call when another can
+            # serve it, but never swallow silently: a broken primary must be
+            # visible in the logs (#989), not hidden behind a fallback's verdict.
+            logger.warning("Vendor %r failed for %s: %s", vendor, method, e)
+            if first_error is None:
+                first_error = e
             continue
 
-        vendor_impl = VENDOR_METHODS[method][vendor]
-        is_primary_vendor = vendor in primary_vendors
-        vendor_attempt_count += 1
+    # If any vendor reported "no data", the symbol is genuinely unavailable.
+    # Return one explicit, instructive sentinel rather than a vendor-specific
+    # empty string, so the agent reports "unavailable" instead of inventing a
+    # value. This takes precedence over incidental fallback errors.
+    if last_no_data is not None:
+        if first_error is not None:
+            # A vendor also hit a real error; surface it in logs so the no-data
+            # verdict can't hide a broken primary (network/auth/etc.).
+            logger.warning(
+                "Returning NO_DATA for %s, but a vendor errored earlier: %s",
+                method, first_error,
+            )
+        sym = last_no_data.symbol
+        canonical = last_no_data.canonical
+        resolved = "" if canonical == sym else f" (resolved to '{canonical}')"
+        # Surface the typed error's detail (e.g. "latest row is 2025-06-11 ...
+        # stale") so the agent sees the specific reason — invalid symbol, no
+        # coverage, or stale data — not just a generic "unavailable".
+        reason = f" ({last_no_data.detail})" if last_no_data.detail else ""
+        return (
+            f"NO_DATA_AVAILABLE: No usable market data for '{sym}'{resolved} from "
+            f"any configured vendor{reason}. The symbol may be invalid, delisted, "
+            f"not covered, or the vendor returned stale data. Do not estimate or "
+            f"fabricate values — report that data is unavailable for this symbol."
+        )
 
-        # Track if we attempted any primary vendor
-        if is_primary_vendor:
-            any_primary_vendor_attempted = True
+    # No vendor returned data and none reported clean "no data" — surface the
+    # first real error (e.g. the primary vendor's network failure). Optional
+    # enrichment categories degrade to a sentinel instead, so flavour data can't
+    # abort the run.
+    if first_error is not None:
+        if category in OPTIONAL_CATEGORIES:
+            logger.warning("Optional %s unavailable for %s: %s", category, method, first_error)
+            return (
+                f"DATA_UNAVAILABLE: optional {category} could not be retrieved "
+                f"({first_error}). Proceed without it; do not fabricate values."
+            )
+        raise first_error
 
-        # Debug: Print current attempt
-        vendor_type = "PRIMARY" if is_primary_vendor else "FALLBACK"
-        print(f"DEBUG: Attempting {vendor_type} vendor '{vendor}' for {method} (attempt #{vendor_attempt_count})")
-
-        # Handle list of methods for a vendor
-        if isinstance(vendor_impl, list):
-            vendor_methods = [(impl, vendor) for impl in vendor_impl]
-            print(f"DEBUG: Vendor '{vendor}' has multiple implementations: {len(vendor_methods)} functions")
-        else:
-            vendor_methods = [(vendor_impl, vendor)]
-
-        # Run methods for this vendor
-        vendor_results = []
-        for impl_func, vendor_name in vendor_methods:
-            try:
-                print(f"DEBUG: Calling {impl_func.__name__} from vendor '{vendor_name}'...")
-                result = impl_func(*args, **kwargs)
-                vendor_results.append(result)
-                print(f"SUCCESS: {impl_func.__name__} from vendor '{vendor_name}' completed successfully")
-                    
-            except AlphaVantageRateLimitError as e:
-                if vendor == "alpha_vantage":
-                    print(f"RATE_LIMIT: Alpha Vantage rate limit exceeded, falling back to next available vendor")
-                    print(f"DEBUG: Rate limit details: {e}")
-                # Continue to next vendor for fallback
-                continue
-            except Exception as e:
-                # Log error but continue with other implementations
-                print(f"FAILED: {impl_func.__name__} from vendor '{vendor_name}' failed: {e}")
-                continue
-
-        # Add this vendor's results
-        if vendor_results:
-            results.extend(vendor_results)
-            successful_vendor = vendor
-            result_summary = f"Got {len(vendor_results)} result(s)"
-            print(f"SUCCESS: Vendor '{vendor}' succeeded - {result_summary}")
-            
-            # Stopping logic: Stop after first successful vendor for single-vendor configs
-            # Multiple vendor configs (comma-separated) may want to collect from multiple sources
-            if len(primary_vendors) == 1:
-                print(f"DEBUG: Stopping after successful vendor '{vendor}' (single-vendor config)")
-                break
-        else:
-            print(f"FAILED: Vendor '{vendor}' produced no results")
-
-    # Final result summary
-    if not results:
-        print(f"FAILURE: All {vendor_attempt_count} vendor attempts failed for method '{method}'")
-        raise RuntimeError(f"All vendor implementations failed for method '{method}'")
-    else:
-        print(f"FINAL: Method '{method}' completed with {len(results)} result(s) from {vendor_attempt_count} vendor attempt(s)")
-
-    # Return single result if only one, otherwise concatenate as string
-    if len(results) == 1:
-        return results[0]
-    else:
-        # Convert all results to strings and concatenate
-        return '\n'.join(str(result) for result in results)
+    raise RuntimeError(f"No available vendor for '{method}'")
