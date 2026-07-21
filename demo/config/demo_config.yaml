@@ -1,0 +1,35 @@
+# ─── TradingAgents Demo Configuration ────────────────────────────────────────
+
+strategy:
+  symbols:
+    - AAPL
+    - MSFT
+    - NVDA
+  initial_capital: 100000
+  max_position_pct: 0.20       # max 20% of capital per position
+  stop_loss_pct: 0.05          # 5% stop loss
+  take_profit_pct: 0.10        # 10% take profit
+  dry_run: true                # paper trading (no real money)
+
+agents:
+  llm_provider: openai
+  model: gpt-4o-mini           # cheaper; swap to gpt-4o for higher accuracy
+  temperature: 0.1
+  analyst_rounds: 2            # number of bull/bear debate rounds
+  include_news: true
+  include_fundamentals: true
+  include_technicals: true
+
+self_improvement:
+  enabled: true
+  lookback_days: 14
+  min_trades_to_improve: 5
+  learning_rate: 0.05          # how fast weights shift per improvement cycle
+  weight_bounds: [0.05, 0.95]  # min/max analyst weight
+
+logging:
+  level: INFO
+  results_dir: data/results
+  performance_dir: data/performance
+  parameters_dir: data/parameters
+  dashboard_dir: dashboards

@@ -1,0 +1,13 @@
+# ─── Scheduler Configuration ─────────────────────────────────────────────────
+
+schedule:
+  # Run at 09:31 AM local time on weekdays (1 min after US market open)
+  time: "09:31"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+  timezone: "America/New_York"  # Change to your local timezone if needed
+
+  # After running, also trigger self-improvement if enough data exists
+  run_self_improve_after: true
+
+  # Regenerate dashboard after each run
+  run_visualize_after: true
