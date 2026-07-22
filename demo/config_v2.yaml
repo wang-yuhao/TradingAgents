@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TradingAgents Demo Configuration (v2 - Comet-generated production pipeline)
+# All runtime settings live here. Edit freely — no code changes needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+tickers:
+  - AAPL
+  - MSFT
+  - GOOGL
+  - NVDA
+  - TSLA
+  - AMZN
+  - META
+  - SPY
+
+benchmark: SPY
+
+schedule:
+  run_time: "08:30"
+  timezone: "America/New_York"
+  calendar: "NYSE"
+
+llm:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  fallback_providers:
+    - provider: "anthropic"
+      model: "claude-3-haiku-20240307"
+    - provider: "google"
+      model: "gemini-1.5-flash"
+  max_retries: 3
+  retry_backoff_base: 2
+
+trading_agents:
+  debate_rounds: 1
+  max_risk_discuss_rounds: 1
+  online_tools: true
+
+backtest:
+  lookback_days: 30
+  holding_period_days: 5
+  min_confidence_threshold: 0.5
+  risk_free_rate: 0.053
+
+self_improve:
+  memory_file: "tradingagents/dataflows/data/trading_memory.md"
+  min_trades_for_reflection: 3
+  max_reflection_length: 1500
+
+logging:
+  level: "INFO"
+  log_dir: "demo/logs"
+  retention_days: 30
+
+dashboard:
+  decision_log_dir: "demo/decision_log"
+  refresh_seconds: 300
+  default_lookback_days: 30
