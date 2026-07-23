@@ -15,6 +15,7 @@ import sys
 import json
 import argparse
 import logging
+import re
 import time
 from datetime import date, datetime
 from pathlib import Path
@@ -85,21 +86,15 @@ def parse_decision(state: dict, ticker: str, analysis_date: str) -> dict:
     )
 
     action = "HOLD"
+    # FIX: was truncated as `raw_upper = str(raw_decisio` — corrected below
     raw_upper = str(raw_decision).upper()
     if "BUY" in raw_upper:
         action = "BUY"
     elif "SELL" in raw_upper:
         action = "SELL"
 
-    confidence = _extract_confidence(raw_decision)
-    rationale = str(raw_decision).strip()[:500] if raw_decision else "No rationale provided."
-
-    analyst_summary = {
-        "market": str(state.get("market_report", ""))[:200],
-        "sentiment": str(state.get("sentiment_report", ""))[:200],
-        "news": str(state.get("news_report", ""))[:200],
-        "fundamentals": str(state.get("fundamentals_report", ""))[:200],
-    }
+    confidence = _extract_confidence(str(raw_decision))
+    rationale = _extract_rationale(str(raw_decision))
 
     return {
         "date": analysis_date,
@@ -107,17 +102,12 @@ def parse_decision(state: dict, ticker: str, analysis_date: str) -> dict:
         "action": action,
         "confidence": confidence,
         "rationale_summary": rationale,
-        "analyst_summary": analyst_summary,
-        "raw_decision": str(raw_decision)[:2000],
-        "model": CFG["llm"]["model"],
-        "provider": CFG["llm"]["provider"],
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "raw_decision": str(raw_decision)[:500],
     }
 
 
 def _extract_confidence(text: str) -> float:
-    import re
-    text = str(text)
+    """Extract a 0-1 confidence score from free-form LLM text."""
     patterns = [
         r"confidence[:\s]+([0-9]+\.?[0-9]*)\s*%",
         r"confidence[:\s]+([0-1]?\.[0-9]+)",
@@ -129,6 +119,12 @@ def _extract_confidence(text: str) -> float:
             val = float(m.group(1))
             return round(val / 100 if val > 1 else val, 4)
     return 0.6
+
+
+def _extract_rationale(text: str, max_len: int = 200) -> str:
+    """Return first max_len chars of the decision text as a summary."""
+    cleaned = " ".join(text.split())
+    return cleaned[:max_len] + ("..." if len(cleaned) > max_len else "")
 
 
 @retry(

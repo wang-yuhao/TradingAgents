@@ -2,11 +2,11 @@
 """
 run_daily.py — Daily entry point for the TradingAgents demo.
 
-Usage:
-  python run_daily.py                            # Run for today
-  python run_daily.py --date 2026-07-21          # Specific date
-  python run_daily.py --symbol AAPL --dry-run    # Single symbol, dry-run
-  python run_daily.py --all-symbols              # All configured symbols
+Usage (run from repo root):
+  python demo/scripts/run_daily.py                           # Run for today
+  python demo/scripts/run_daily.py --date 2026-07-21         # Specific date
+  python demo/scripts/run_daily.py --symbol AAPL --dry-run   # Single symbol, dry-run
+  python demo/scripts/run_daily.py --all-symbols             # All configured symbols
 """
 
 import argparse
@@ -21,9 +21,10 @@ import yaml
 from dotenv import load_dotenv
 
 # ── Path setup ───────────────────────────────────────────────────────────────
-DEMO_DIR = Path(__file__).resolve().parent.parent
-REPO_ROOT = DEMO_DIR.parent
+DEMO_DIR = Path(__file__).resolve().parent.parent   # demo/
+REPO_ROOT = DEMO_DIR.parent                         # repo root
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(DEMO_DIR / "scripts"))       # so sibling scripts are importable
 
 # Load environment variables from demo/.env
 load_dotenv(DEMO_DIR / ".env")
@@ -92,7 +93,6 @@ def run_trading_agent(symbol: str, trade_date: str, config: dict, weights: dict,
 
     except ImportError as e:
         log.error("TradingAgents import failed: %s. Running in SIMULATION mode.", e)
-        import random
         result = _simulate_trade(symbol, trade_date, weights, dry_run)
 
     return result
@@ -149,10 +149,11 @@ def maybe_run_postprocessing(config: dict):
     with open(schedule_config_path) as f:
         sched = yaml.safe_load(f)
 
+    # DEMO_DIR/scripts is already in sys.path (added at module top)
     if sched["schedule"].get("run_self_improve_after", True):
         log.info("Running self-improvement analysis...")
         try:
-            from scripts.self_improve import run_self_improvement
+            from self_improve import run_self_improvement
             run_self_improvement(config)
         except Exception as e:
             log.warning("Self-improvement failed (non-fatal): %s", e)
@@ -160,7 +161,7 @@ def maybe_run_postprocessing(config: dict):
     if sched["schedule"].get("run_visualize_after", True):
         log.info("Regenerating dashboard...")
         try:
-            from scripts.visualize import generate_dashboard
+            from visualize import generate_dashboard
             generate_dashboard(config)
         except Exception as e:
             log.warning("Dashboard generation failed (non-fatal): %s", e)
@@ -187,9 +188,9 @@ def main():
     else:
         symbols = config["strategy"]["symbols"]
 
-    log.info("═" * 60)
+    log.info("\u2550" * 60)
     log.info("TradingAgents Daily Run | Date: %s | Symbols: %s", trade_date, symbols)
-    log.info("═" * 60)
+    log.info("\u2550" * 60)
 
     all_results = []
     for symbol in symbols:

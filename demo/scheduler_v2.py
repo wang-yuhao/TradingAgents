@@ -17,6 +17,7 @@ import sys
 import signal
 import logging
 import argparse
+import importlib.util
 from datetime import datetime, date
 from pathlib import Path
 
@@ -28,10 +29,13 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 import pandas_market_calendars as mcal
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+DEMO_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(DEMO_DIR))  # so `import run_analysis_v2` works directly
+
 load_dotenv(REPO_ROOT / ".env")
 
-CONFIG_PATH = Path(__file__).parent / "config_v2.yaml"
+CONFIG_PATH = DEMO_DIR / "config_v2.yaml"
 with open(CONFIG_PATH) as f:
     CFG = yaml.safe_load(f)
 
@@ -67,8 +71,9 @@ def is_trading_day(check_date: date = None) -> bool:
 
 
 def step_analysis() -> bool:
-    from demo.run_analysis_v2 import run as run_analysis
+    # Import directly by path so this works regardless of cwd or package layout
     try:
+        from run_analysis_v2 import run as run_analysis
         out = run_analysis()
         logger.info(f"Analysis complete -> {out}")
         return True
@@ -78,8 +83,8 @@ def step_analysis() -> bool:
 
 
 def step_backtest() -> bool:
-    from demo.backtest_v2 import run as run_backtest
     try:
+        from backtest_v2 import run as run_backtest
         results = run_backtest()
         if results:
             m = results.get("metrics", {})
@@ -96,8 +101,8 @@ def step_backtest() -> bool:
 
 
 def step_self_improve() -> bool:
-    from demo.self_improve_v2 import run as run_self_improve
     try:
+        from self_improve_v2 import run as run_self_improve
         run_self_improve()
         return True
     except Exception as exc:
